@@ -1,0 +1,62 @@
+openapi: 3.0.0
+info:
+  title: Assess API
+  version: 0.1.0
+paths:
+  /api/assignments:
+    post:
+      summary: Create assignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Assignment'
+      responses:
+        '201':
+          description: Created
+  /api/submissions:
+    post:
+      summary: Submit answers for grading
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Submission'
+      responses:
+        '200':
+          description: Grade results
+components:
+  schemas:
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        prompt:
+          type: string
+    Assignment:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+    Submission:
+      type: object
+      properties:
+        id:
+          type: string
+        assignmentId:
+          type: string
+        studentId:
+          type: string
+        answers:
+          type: object
