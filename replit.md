@@ -34,10 +34,10 @@ Assess is deployed as part of the **zivopal-core Railway project** so both servi
 
 ### Services in the Railway project
 
-| Service | Dockerfile | Start command |
+| Service | Dockerfile | Start command override |
 |---|---|---|
-| `assess-api` | `Dockerfile` | `node dist/index.js` |
-| `assess-worker` | `Dockerfile.worker` | `node dist/worker/start.js` |
+| `assess-api` | `Dockerfile` | *(none — uses Dockerfile default)* |
+| `assess-worker` | `Dockerfile` | `node dist/worker/start.js` |
 | `Redis` | Railway Redis plugin | — |
 
 ### Adding Assess to the existing Railway project
@@ -45,7 +45,7 @@ Assess is deployed as part of the **zivopal-core Railway project** so both servi
 1. Open the zivopal-core Railway project.
 2. **Add service → Deploy from GitHub repo** → select `ZivoAi/Assess`.
    - Railway will auto-detect `railway.toml` and use `Dockerfile` for the API service.
-3. **Add a second service** for the worker → same repo, but set **Dockerfile path** to `Dockerfile.worker` in the service settings. Name it `assess-worker`.
+3. **Add a second service** for the worker → same repo, same `Dockerfile`. In the service **Settings → Deploy → Start Command**, enter `node dist/worker/start.js`. Name the service `assess-worker`.
 4. **Add Redis** (if not already present) → Add Plugin → Redis. Share the `REDIS_URL` variable with both assess services.
 5. Set the following env vars on **assess-api** and **assess-worker**:
    - `OPENAI_API_KEY`
