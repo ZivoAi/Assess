@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { pool } from '../db/client.js';
 
 type Status = 'pending' | 'completed' | 'failed';
 
@@ -9,73 +10,132 @@ interface BatchEntry {
   failedCount: number;
   statuses: Record<string, Status>;
   results: Record<string, any>;
-  error?: string;
   callbackUrl?: string;
 }
 
-const store = new Map<string, BatchEntry>();
-
-async function notifyCallback(url: string, payload: any) {
+async function notifyCallback(url: string, payload: any): Promise<void> {
   try {
     await axios.post(url, payload, { timeout: 5000 });
   } catch (e) {
-    // Log and ignore — do not throw from store
     console.warn('Failed to notify callback', url, (e as Error).message);
   }
 }
 
+function rowToBatch(row: any): BatchEntry {
+  return {
+    batchId: row.id,
+    total: row.total,
+    completedCount: row.completed_count,
+    failedCount: row.failed_count,
+    callbackUrl: row.callback_url ?? undefined,
+    statuses: row.submission_statuses ?? {},
+    results: row.submission_results ?? {},
+  };
+}
+
 export const batchStore = {
-  createBatch(batchId: string, total: number, callbackUrl?: string) {
-    const entry: BatchEntry = {
-      batchId,
-      total,
-      completedCount: 0,
-      failedCount: 0,
-      statuses: {},
-      results: {},
-      callbackUrl,
-    };
-    store.set(batchId, entry);
+  async createBatch(batchId: string, total: number, callbackUrl?: string): Promise<BatchEntry> {
+    const { rows } = await pool.query<any>(
+      `INSERT INTO batches (id, total, callback_url)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET total = EXCLUDED.total
+       RETURNING *`,
+      [batchId, total, callbackUrl ?? null],
+    );
+    const entry = rowToBatch(rows[0]);
     if (callbackUrl) {
-      notifyCallback(callbackUrl, { batchId, status: 'created', total });
+      await notifyCallback(callbackUrl, { batchId, status: 'created', total });
     }
     return entry;
   },
-  addSubmission(batchId: string, submissionId: string) {
-    const e = store.get(batchId);
-    if (!e) throw new Error('Batch not found');
-    e.statuses[submissionId] = 'pending';
-    if (e.callbackUrl) notifyCallback(e.callbackUrl, { batchId, status: 'pending', submissionId });
-  },
-  async markCompleted(batchId: string, submissionId: string, result: any) {
-    const e = store.get(batchId);
-    if (!e) throw new Error('Batch not found');
-    if (e.statuses[submissionId] !== 'pending') {
-      e.statuses[submissionId] = 'completed';
-    } else {
-      e.statuses[submissionId] = 'completed';
+
+  async addSubmission(batchId: string, submissionId: string): Promise<void> {
+    const { rows } = await pool.query<any>(
+      `UPDATE batches
+       SET submission_statuses = jsonb_set(submission_statuses, $2::text[], '"pending"'::jsonb, true),
+           submission_ids = submission_ids || to_jsonb($3::text)
+       WHERE id = $1
+       RETURNING callback_url`,
+      [batchId, `{${submissionId}}`, submissionId],
+    );
+    if (rows.length === 0) throw new Error('Batch not found');
+    const callbackUrl = rows[0].callback_url;
+    if (callbackUrl) {
+      await notifyCallback(callbackUrl, { batchId, status: 'pending', submissionId });
     }
-    e.results[submissionId] = result;
-    e.completedCount += 1;
-    if (e.callbackUrl) await notifyCallback(e.callbackUrl, { batchId, status: 'progress', submissionId, completedCount: e.completedCount, total: e.total });
-    if (e.completedCount + e.failedCount >= e.total) {
-      if (e.callbackUrl) await notifyCallback(e.callbackUrl, { batchId, status: 'completed', completed: e.completedCount, failed: e.failedCount });
-    }
-    return e;
   },
-  async markFailed(batchId: string, submissionId: string, error: string) {
-    const e = store.get(batchId);
-    if (!e) throw new Error('Batch not found');
-    e.statuses[submissionId] = 'failed';
-    e.failedCount += 1;
-    e.results[submissionId] = { error };
-    if (e.callbackUrl) await notifyCallback(e.callbackUrl, { batchId, status: 'progress', submissionId, completedCount: e.completedCount, failedCount: e.failedCount, total: e.total });
-    if (e.completedCount + e.failedCount >= e.total) {
-      if (e.callbackUrl) await notifyCallback(e.callbackUrl, { batchId, status: 'completed', completed: e.completedCount, failed: e.failedCount });
+
+  async markCompleted(batchId: string, submissionId: string, result: any): Promise<BatchEntry> {
+    const { rows } = await pool.query<any>(
+      `UPDATE batches
+       SET completed_count = completed_count + 1,
+           submission_statuses = jsonb_set(submission_statuses, $2::text[], '"completed"'::jsonb, true),
+           submission_results = jsonb_set(submission_results, $2::text[], $3::jsonb, true)
+       WHERE id = $1
+       RETURNING *`,
+      [batchId, `{${submissionId}}`, JSON.stringify(result)],
+    );
+    if (rows.length === 0) throw new Error('Batch not found');
+    const entry = rowToBatch(rows[0]);
+    if (entry.callbackUrl) {
+      await notifyCallback(entry.callbackUrl, {
+        batchId,
+        status: 'progress',
+        submissionId,
+        completedCount: entry.completedCount,
+        total: entry.total,
+      });
+      if (entry.completedCount + entry.failedCount >= entry.total) {
+        await notifyCallback(entry.callbackUrl, {
+          batchId,
+          status: 'completed',
+          completed: entry.completedCount,
+          failed: entry.failedCount,
+        });
+      }
     }
-    return e;
+    return entry;
   },
-  get(batchId: string) {
-    return store.get(batchId);
+
+  async markFailed(batchId: string, submissionId: string, error: string): Promise<BatchEntry> {
+    const { rows } = await pool.query<any>(
+      `UPDATE batches
+       SET failed_count = failed_count + 1,
+           submission_statuses = jsonb_set(submission_statuses, $2::text[], '"failed"'::jsonb, true),
+           submission_results = jsonb_set(submission_results, $2::text[], $3::jsonb, true)
+       WHERE id = $1
+       RETURNING *`,
+      [batchId, `{${submissionId}}`, JSON.stringify({ error })],
+    );
+    if (rows.length === 0) throw new Error('Batch not found');
+    const entry = rowToBatch(rows[0]);
+    if (entry.callbackUrl) {
+      await notifyCallback(entry.callbackUrl, {
+        batchId,
+        status: 'progress',
+        submissionId,
+        completedCount: entry.completedCount,
+        failedCount: entry.failedCount,
+        total: entry.total,
+      });
+      if (entry.completedCount + entry.failedCount >= entry.total) {
+        await notifyCallback(entry.callbackUrl, {
+          batchId,
+          status: 'completed',
+          completed: entry.completedCount,
+          failed: entry.failedCount,
+        });
+      }
+    }
+    return entry;
+  },
+
+  async get(batchId: string): Promise<BatchEntry | undefined> {
+    const { rows } = await pool.query<any>(
+      'SELECT * FROM batches WHERE id = $1',
+      [batchId],
+    );
+    if (!rows[0]) return undefined;
+    return rowToBatch(rows[0]);
   },
 };

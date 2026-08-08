@@ -10,7 +10,9 @@ import dotenv from 'dotenv';
   export const ZIVOPAL_CORE_URL = process.env.ZIVOPAL_CORE_URL || '';
   export const ZIVOPAL_SERVICE_KEY = process.env.ZIVOPAL_SERVICE_KEY || '';
 
-  export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  export const DATABASE_URL = process.env.DATABASE_URL || '';
+
+export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);

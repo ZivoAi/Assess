@@ -1,9 +1,17 @@
 import request from 'supertest';
 import { createApp } from '../src/app';
 
+jest.mock('../src/db/client');
+
+import { resetMockDb } from '../src/db/__mocks__/client';
+
 const app = createApp();
 
 describe('API integration', () => {
+  beforeEach(() => {
+    resetMockDb();
+  });
+
   it('creates assignment and grades a submission', async () => {
     const assignment = {
       id: 'a1',

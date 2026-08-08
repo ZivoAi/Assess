@@ -4,12 +4,17 @@ import * as queue from '../src/worker/queue';
 import { submissionsStore } from '../src/store/submissionsStore';
 
 jest.mock('../src/worker/queue');
+jest.mock('../src/db/client');
+
+// Import resetMockDb after mocking so we get the mock version
+import { resetMockDb } from '../src/db/__mocks__/client';
 
 describe('Submissions queueing', () => {
   const app = createApp();
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
+    resetMockDb();
   });
 
   it('enqueues grading for assignments with essay questions', async () => {
@@ -29,7 +34,7 @@ describe('Submissions queueing', () => {
     expect(res.body.submissionId).toBe(submission.id);
     expect(enqueueSpy).toHaveBeenCalled();
 
-    const record = submissionsStore.get(submission.id);
+    const record = await submissionsStore.get(submission.id);
     expect(record).toBeDefined();
     expect(record?.status).toBe('pending');
   });

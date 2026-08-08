@@ -6,12 +6,16 @@ import { batchStore } from '../src/store/batchStore';
 
 jest.mock('../src/worker/queue');
 jest.mock('axios');
+jest.mock('../src/db/client');
+
+import { resetMockDb } from '../src/db/__mocks__/client';
 
 describe('Batch submissions', () => {
   const app = createApp();
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
+    resetMockDb();
     (axios.post as jest.Mock).mockResolvedValue({ status: 200 });
   });
 
@@ -27,7 +31,7 @@ describe('Batch submissions', () => {
     expect(res.body.batchId).toBeDefined();
     expect(enqueueSpy).toHaveBeenCalledTimes(2);
 
-    const b = batchStore.get(res.body.batchId);
+    const b = await batchStore.get(res.body.batchId);
     expect(b).toBeDefined();
     expect(b?.total).toBe(2);
     expect(Object.keys(b?.statuses || {}).length).toBe(2);
