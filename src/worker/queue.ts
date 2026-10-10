@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueScheduler, Job } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { runGradingPipeline } from '../grader/core.js';
 import { getAssignment } from '../api/assignments.js';
@@ -11,7 +11,6 @@ import type { GradeResult } from '../types.js';
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 
 export const gradingQueue = new Queue('grading', { connection });
-export const gradingScheduler = new QueueScheduler('grading', { connection });
 
 export async function enqueueGradingJob(submission: any, opts?: { batchId?: string }) {
   const payload = { ...submission, batchId: opts?.batchId };

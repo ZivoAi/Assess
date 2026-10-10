@@ -1,5 +1,5 @@
-import { Grader, GradeDetail } from '../types';
-import { getEmbedding, cosineSimilarity } from '../llm/embeddings';
+import { Grader, GradeDetail } from '../types.js';
+import { getEmbedding, cosineSimilarity } from '../llm/embeddings.js';
 
 function normalize(s: string) {
   return s ? s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : '';

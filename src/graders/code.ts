@@ -1,4 +1,4 @@
-import { Grader, GradeDetail } from '../types';
+import { Grader, GradeDetail } from '../types.js';
 
 // WARNING: Code grading requires secure sandboxing; this is only an interface stub.
 export class CodeGrader implements Grader {

@@ -1,5 +1,5 @@
-import { Grader } from '../types';
-import { GradeDetail } from '../types';
+import { Grader } from '../types.js';
+import { GradeDetail } from '../types.js';
 
 export class MCQGrader implements Grader {
   async grade(question: any, answer: any): Promise<GradeDetail> {

@@ -1,18 +1,18 @@
 import pg from 'pg';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { DATABASE_URL, ASSESS_DB_SCHEMA } from '../config.js';
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
+if (!DATABASE_URL) {
   console.warn('DATABASE_URL is not set — database operations will fail');
 }
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: DATABASE_URL,
+  // No public-schema fallback: API and worker share only their configured schema.
+  options: `-c search_path=${ASSESS_DB_SCHEMA}`,
   // Railway Postgres requires SSL; skip validation for self-signed certs
-  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost')
+  ssl: DATABASE_URL && !DATABASE_URL.includes('localhost')
     ? { rejectUnauthorized: false }
     : false,
   max: 10,

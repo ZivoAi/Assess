@@ -1,6 +1,6 @@
-import { Grader, GradeDetail } from '../types';
+import { Grader, GradeDetail } from '../types.js';
 
-import { scoreEssayWithOpenAI } from '../llm/openai';
+import { scoreEssayWithOpenAI } from '../llm/openai.js';
 
 export class EssayGrader implements Grader {
   // Use OpenAI when available, otherwise fall back to keyword matching

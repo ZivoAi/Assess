@@ -11,6 +11,10 @@ import dotenv from 'dotenv';
   export const ZIVOPAL_SERVICE_KEY = process.env.ZIVOPAL_SERVICE_KEY || '';
 
   export const DATABASE_URL = process.env.DATABASE_URL || '';
+  export const ASSESS_DB_SCHEMA = process.env.ASSESS_DB_SCHEMA || 'public';
+  if (!/^[a-z][a-z0-9_]{0,62}$/.test(ASSESS_DB_SCHEMA)) {
+    throw new Error('ASSESS_DB_SCHEMA must be a lowercase PostgreSQL identifier');
+  }
 
 export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
