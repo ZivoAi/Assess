@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { startWorker, gradingQueue } from './queue.js';
 import { DATABASE_URL, PORT } from '../config.js';
 import { pool } from '../db/client.js';
+import { runServiceSmoke } from '../integrations/serviceSmoke.js';
 
 async function main() {
   if (!DATABASE_URL) throw new Error('DATABASE_URL is required for the Assess worker');
@@ -23,7 +24,10 @@ async function main() {
     res.statusCode = req.url === '/health' ? 200 : 404;
     res.end(req.url === '/health' ? 'ok' : 'Not found');
   });
-  server.listen(PORT, () => console.log(`Assess worker health server listening on port ${PORT}`));
+  server.listen(PORT, () => {
+    console.log(`Assess worker health server listening on port ${PORT}`);
+    void runServiceSmoke().catch(() => console.error('[service-smoke] Assess checks: FAIL; verify service URLs and credentials'));
+  });
 
   let stopping = false;
   async function stop() {
