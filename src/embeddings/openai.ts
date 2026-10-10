@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { OPENAI_API_KEY } from '../config';
+import { OPENAI_API_KEY } from '../config.js';
 
 const cache = new Map<string, number[]>();
 
