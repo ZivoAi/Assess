@@ -8,11 +8,12 @@ import express from 'express';
   import { batchesRouter } from './api/batches.js';
   import { zivopalRouter } from './integrations/zivopal.js';
   import { ALLOWED_ORIGINS } from './config.js';
+  import { requestLogRedaction } from './logging.js';
 
   export function createApp() {
     const app = express();
 
-    app.use(pinoHttp());
+    app.use(pinoHttp({ redact: requestLogRedaction }));
 
     app.use(
       cors({
