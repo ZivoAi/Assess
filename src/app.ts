@@ -1,6 +1,6 @@
 import express from 'express';
   import cors from 'cors';
-  import { json } from 'body-parser';
+  import bodyParser from 'body-parser';
   import pinoHttp from 'pino-http';
   import rateLimit from 'express-rate-limit';
   import { assignmentsRouter } from './api/assignments.js';
@@ -30,7 +30,7 @@ import express from 'express';
       }),
     );
 
-    app.use(json());
+    app.use(bodyParser.json());
 
     app.use('/api/assignments', assignmentsRouter);
     app.use('/api/submissions', submissionsRouter);
