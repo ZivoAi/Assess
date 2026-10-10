@@ -1,8 +1,8 @@
-import { GraderRegistry } from './core';
-import { MCQGrader } from '../graders/mcq';
-import { ShortAnswerGrader } from '../graders/shortAnswer';
-import { EssayGrader } from '../graders/essay';
-import { CodeGrader } from '../graders/code';
+import { GraderRegistry } from './core.js';
+import { MCQGrader } from '../graders/mcq.js';
+import { ShortAnswerGrader } from '../graders/shortAnswer.js';
+import { EssayGrader } from '../graders/essay.js';
+import { CodeGrader } from '../graders/code.js';
 
 export const registry = new GraderRegistry();
 registry.register('mcq', new MCQGrader());
