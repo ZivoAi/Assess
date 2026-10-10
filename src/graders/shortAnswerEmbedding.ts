@@ -1,6 +1,6 @@
-import { Grader, GradeDetail } from '../types';
-import { getEmbedding, cosineSimilarity } from '../embeddings/openai';
-import { ShortAnswerGrader } from './shortAnswer';
+import { Grader, GradeDetail } from '../types.js';
+import { getEmbedding, cosineSimilarity } from '../embeddings/openai.js';
+import { ShortAnswerGrader } from './shortAnswer.js';
 
 export class ShortAnswerEmbeddingGrader implements Grader {
   threshold: number;
