@@ -1,4 +1,4 @@
-import { Grader, GradeDetail, Question } from '../types';
+import { Grader, GradeDetail, Question } from '../types.js';
 
 export class GraderRegistry {
   private graders: Record<string, Grader> = {};
