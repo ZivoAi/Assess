@@ -1,5 +1,6 @@
 // Build-time check only: no credentials, database writes, or queued jobs.
 process.env.DATABASE_URL = 'postgresql://smoke:smoke@127.0.0.1:1/smoke';
+process.env.ASSESS_DB_SCHEMA = 'public';
 process.env.REDIS_URL = 'redis://127.0.0.1:1';
 process.env.OPENAI_API_KEY = '';
 process.env.ZIVOPAL_SERVICE_KEY = '';
