@@ -10,13 +10,6 @@ export async function runServiceSmoke(): Promise<void> {
   if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password) {
     throw new Error('ZIVOPAL_CORE_URL must be a credential-free HTTP URL');
   }
-  const models = await fetch('https://api.openai.com/v1/models', {
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` }, signal: AbortSignal.timeout(20000),
-  });
-  await models.body?.cancel();
-  if (!models.ok) throw new Error(`Assess OpenAI authentication check failed: HTTP ${models.status}`);
-  console.log('[service-smoke] Assess OpenAI authentication: PASS');
-
   const callback = new URL('/api/grades/callback', base);
   const authorized = await fetch(callback, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Service-Key': ZIVOPAL_SERVICE_KEY },
@@ -33,5 +26,12 @@ export async function runServiceSmoke(): Promise<void> {
   await unauthorized.body?.cancel();
   if (unauthorized.status !== 401) throw new Error(`Unauthenticated callback expected 401, got ${unauthorized.status}`);
   console.log('[service-smoke] callback missing-key rejection: PASS (401)');
+  const models = await fetch('https://api.openai.com/v1/models', {
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` }, signal: AbortSignal.timeout(20000),
+  });
+  await models.body?.cancel();
+  if (!models.ok) throw new Error(`Assess OpenAI authentication check failed: HTTP ${models.status}`);
+  console.log('[service-smoke] Assess OpenAI authentication: PASS');
+
   console.log('[service-smoke] Assess checks: ALL PASS');
 }
