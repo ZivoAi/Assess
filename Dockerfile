@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN set -eu;     if npm ci --include=dev && test -x node_modules/.bin/tsc; then       echo "Build dependencies installed with npm ci";     else       echo "npm ci did not install TypeScript; retrying with npm install";       rm -rf node_modules;       npm install --include=dev --legacy-peer-deps;       test -x node_modules/.bin/tsc;     fi
 COPY . .
-RUN npm run build
+RUN npm run build && mkdir -p dist/db/migrations && cp src/db/migrations/*.sql dist/db/migrations/
 
 FROM node:20-alpine
 WORKDIR /app
