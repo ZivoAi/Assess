@@ -11,4 +11,4 @@ COPY package.json package-lock.json* ./
 RUN set -eu;     if npm ci --omit=dev && npm ls --omit=dev --depth=0 >/dev/null; then       echo "Runtime dependencies installed with npm ci";     else       echo "npm ci did not install runtime dependencies; retrying with npm install";       rm -rf node_modules;       npm install --omit=dev --legacy-peer-deps;       npm ls --omit=dev --depth=0 >/dev/null;     fi
 COPY --from=build /app/dist ./dist
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/start.js"]
