@@ -1,11 +1,9 @@
 import pg from 'pg';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { DATABASE_URL, ASSESS_DB_SCHEMA } from '../config.js';
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
+if (!DATABASE_URL) {
   console.warn('DATABASE_URL is not set — database operations will fail');
 }
 
