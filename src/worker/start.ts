@@ -6,7 +6,16 @@ import { pool } from '../db/client.js';
 
 async function main() {
   if (!DATABASE_URL) throw new Error('DATABASE_URL is required for the Assess worker');
-  await pool.query('SELECT 1');
+  // The API applies migrations; do not consume jobs before its tables exist.
+  let schemaReady = false;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const result = await pool.query(
+      "SELECT to_regclass('assignments') IS NOT NULL AND to_regclass('submissions') IS NOT NULL AND to_regclass('batches') IS NOT NULL AS ready",
+    );
+    if (result.rows[0]?.ready) { schemaReady = true; break; }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  if (!schemaReady) throw new Error('Assess schema is not initialized; start the API first');
   const worker = startWorker();
   await worker.waitUntilReady();
 
