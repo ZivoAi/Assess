@@ -11,13 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Use Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Install
-        run: npm ci
+        run: |
+          if ! npm ci --include=dev \
+            || [ ! -x node_modules/.bin/tsc ] \
+            || [ ! -x node_modules/.bin/jest ]; then
+            echo "::warning::Clean install failed or was incomplete; retrying installation"
+            npm install --include=dev --legacy-peer-deps
+          fi
+          test -x node_modules/.bin/tsc
+          test -x node_modules/.bin/jest
+
+      - name: Build
+        run: npm run build
+
       - name: Lint
         run: npm run lint || true
+
       - name: Test
         run: npm run test
