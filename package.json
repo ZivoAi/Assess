@@ -19,7 +19,7 @@
         "uuid": "^9.0.0"
     },
     "scripts": {
-        "build": "tsc && node scripts/check-runtime-imports.mjs",
+        "build": "tsc && node scripts/prepare-runtime.mjs && node --test scripts/db-schema.test.mjs && node scripts/check-runtime-imports.mjs",
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
         "start": "node dist/index.js",
         "start:worker": "ts-node-dev --respawn --transpile-only src/worker/start.ts",
