@@ -2,6 +2,7 @@ declare module 'bullmq' {
   export class Queue {
     constructor(name: string, opts?: any);
     add(name: string, data: any, opts?: any): Promise<any>;
+    getJob(id: string): Promise<any>;
     close(): Promise<void>;
   }
 
