@@ -7,6 +7,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
     if (url.username || url.password || (url.protocol !== 'https:' &&
         !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))) throw new Error('Invalid Core URL');
     const response = await fetch(url, {
+      redirect: 'error',
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Service-Key': ZIVOPAL_SERVICE_KEY },
       body: JSON.stringify({ texts: [text] }), signal: AbortSignal.timeout(25_000),
     });
