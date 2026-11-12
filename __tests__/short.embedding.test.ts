@@ -1,7 +1,10 @@
 import { ShortAnswerEmbeddingGrader } from '../src/graders/shortAnswerEmbedding';
 import * as embeddings from '../src/embeddings/openai';
 
-jest.mock('../src/embeddings/openai');
+jest.mock('../src/embeddings/openai', () => ({
+  ...jest.requireActual('../src/embeddings/openai'),
+  getEmbedding: jest.fn(),
+}));
 
 describe('ShortAnswerEmbeddingGrader', () => {
   beforeEach(() => jest.resetAllMocks());
@@ -30,14 +33,13 @@ describe('ShortAnswerEmbeddingGrader', () => {
     expect(r.correct).toBe(false);
   });
 
-  it('falls back to token similarity on embedding failure', async () => {
+  it('requires review rather than inventing a lexical mark on embedding failure', async () => {
     (embeddings.getEmbedding as jest.Mock).mockImplementation(async (t: string) => {
       throw new Error('API error');
     });
 
     const g = new ShortAnswerEmbeddingGrader(0.5);
     const q = { id: 'q1', rubric: { modelAnswer: 'Paris' } };
-    const r = await g.grade(q, 'Paris');
-    expect(r.correct).toBe(true);
+    await expect(g.grade(q, 'Paris')).rejects.toThrow(/no mark confirmed/);
   });
 });
