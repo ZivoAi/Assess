@@ -17,7 +17,7 @@ export async function postGradeCallback(body: object, options: { wait?: (ms: num
     try {
       const response = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Service-Key': ZIVOPAL_SERVICE_KEY },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
+        body: JSON.stringify(body), signal: AbortSignal.timeout(10_000), redirect: 'error',
       });
       if (response.ok) return;
       retryable = response.status === 429 || response.status >= 500;
