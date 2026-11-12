@@ -34,6 +34,8 @@ export interface GradeDetail {
 }
 
 export interface GradeResult {
+  /** Internal replay binding; never a learner identity or provider credential. */
+  requestHash?: string;
   submissionId: string;
   totalScore: number;
   details: GradeDetail[];
