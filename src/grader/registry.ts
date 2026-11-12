@@ -6,8 +6,8 @@ import { CodeGrader } from '../graders/code.js';
 
 export const registry = new GraderRegistry();
 registry.register('mcq', new MCQGrader());
-// Enable embeddings by default when OPENAI_API_KEY is provided
-const useEmbeddings = Boolean(process.env.OPENAI_API_KEY);
+// Explicit opt-in; Core owns provider credentials and the embedding API.
+const useEmbeddings = process.env.ASSESS_USE_AI_EMBEDDINGS === 'true';
 registry.register('short', new ShortAnswerGrader(0.6, useEmbeddings));
 registry.register('essay', new EssayGrader());
 registry.register('code', new CodeGrader());
