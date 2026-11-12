@@ -21,13 +21,16 @@ describe('Batch submissions', () => {
 
   it('creates a batch and enqueues jobs', async () => {
     const enqueueSpy = jest.spyOn(queue, 'enqueueGradingJob').mockResolvedValue({} as any);
+    await request(app).post('/api/assignments').send({
+      id: 'a1', title: 'Synthetic', questions: [{ id: 'q1', type: 'mcq', prompt: 'Synthetic', options: ['A'], correctOptionIndex: 0 }],
+    }).expect(201);
 
     const submissions = [
       { id: 's1', assignmentId: 'a1', studentId: 'stu1', answers: {} },
       { id: 's2', assignmentId: 'a1', studentId: 'stu2', answers: {} }
     ];
 
-    const res = await request(app).post('/api/batches').send({ submissions, callbackUrl: 'http://example.com/cb' }).expect(202);
+    const res = await request(app).post('/api/batches').send({ submissions }).expect(202);
     expect(res.body.batchId).toBeDefined();
     expect(enqueueSpy).toHaveBeenCalledTimes(2);
 
