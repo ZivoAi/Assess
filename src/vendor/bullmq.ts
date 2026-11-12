@@ -3,6 +3,7 @@ export class Queue {
   async add(_name: string, _data: any, _opts?: any) {
     return {};
   }
+  async getJob(_id: string) { return undefined; }
 }
 
 export class Worker {
