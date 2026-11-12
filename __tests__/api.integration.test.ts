@@ -1,4 +1,4 @@
-import request from 'supertest';
+import { coreRequest as request } from './helpers/coreRequest';
 import { createApp } from '../src/app';
 
 jest.mock('../src/db/client');
