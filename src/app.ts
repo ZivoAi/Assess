@@ -9,6 +9,7 @@ import express from 'express';
   import { zivopalRouter } from './integrations/zivopal.js';
   import { ALLOWED_ORIGINS } from './config.js';
   import { requestLogRedaction } from './logging.js';
+  import { requireCoreServiceKey } from './middleware/coreServiceAuth.js';
 
   export function createApp() {
     const app = express();
@@ -33,6 +34,7 @@ import express from 'express';
 
     app.use(bodyParser.json());
 
+    app.use('/api', requireCoreServiceKey);
     app.use('/api/assignments', assignmentsRouter);
     app.use('/api/submissions', submissionsRouter);
     app.use('/api/batches', batchesRouter);
