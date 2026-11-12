@@ -12,7 +12,7 @@ export async function gradeEssayWithCore(prompt: string): Promise<{ score: numbe
     const response = await fetch(new URL('/api/ai/internal/assess', base), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Service-Key': ZIVOPAL_SERVICE_KEY },
-      body: JSON.stringify({ prompt }), signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({ prompt }), signal: AbortSignal.timeout(25_000), redirect: 'error',
     });
     if (!response.ok) throw new Error('Core AI grading failed');
     const json = await response.json() as { score?: unknown; feedback?: unknown; requiresTeacherReview?: boolean };
