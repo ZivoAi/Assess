@@ -30,12 +30,14 @@ export interface GradeDetail {
   score: number;
   maxScore: number;
   feedback?: string;
+  requiresTeacherReview?: boolean;
 }
 
 export interface GradeResult {
   submissionId: string;
   totalScore: number;
   details: GradeDetail[];
+  requiresTeacherReview?: boolean;
 }
 
 export interface Grader<TQuestion = any, TAnswer = any> {
