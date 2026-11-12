@@ -1,5 +1,5 @@
-import axios from 'axios';
 import { pool } from '../db/client.js';
+import { GradingRequestError } from '../grader/task.js';
 
 type Status = 'pending' | 'completed' | 'failed';
 
@@ -13,12 +13,10 @@ interface BatchEntry {
   callbackUrl?: string;
 }
 
-async function notifyCallback(url: string, payload: any): Promise<void> {
-  try {
-    await axios.post(url, payload, { timeout: 5000 });
-  } catch (e) {
-    console.warn('Failed to notify callback', url, (e as Error).message);
-  }
+async function notifyCallback(_url: string, _payload: any): Promise<void> {
+  // No Core batch-progress receiver is registered. Never send learner-bearing
+  // progress to a caller-provided URL or silently pretend it was delivered.
+  throw new GradingRequestError(409, 'BATCH_CALLBACK_UNAVAILABLE', 'Legacy batch callbacks require review; use the protected status endpoint');
 }
 
 function rowToBatch(row: any): BatchEntry {
@@ -38,11 +36,14 @@ export const batchStore = {
     const { rows } = await pool.query<any>(
       `INSERT INTO batches (id, total, callback_url)
        VALUES ($1, $2, $3)
-       ON CONFLICT (id) DO UPDATE SET total = EXCLUDED.total
+       ON CONFLICT (id) DO UPDATE SET id = batches.id
        RETURNING *`,
       [batchId, total, callbackUrl ?? null],
     );
     const entry = rowToBatch(rows[0]);
+    if (entry.total !== total || entry.callbackUrl) {
+      throw new GradingRequestError(409, 'BATCH_CONFLICT', 'Existing batch configuration requires review');
+    }
     if (callbackUrl) {
       await notifyCallback(callbackUrl, { batchId, status: 'created', total });
     }
@@ -54,11 +55,14 @@ export const batchStore = {
       `UPDATE batches
        SET submission_statuses = jsonb_set(submission_statuses, $2::text[], '"pending"'::jsonb, true),
            submission_ids = submission_ids || to_jsonb($3::text)
-       WHERE id = $1
+       WHERE id = $1 AND NOT (submission_statuses ? $3)
        RETURNING callback_url`,
       [batchId, `{${submissionId}}`, submissionId],
     );
-    if (rows.length === 0) throw new Error('Batch not found');
+    if (rows.length === 0) {
+      if (await batchStore.get(batchId)) return;
+      throw new Error('Batch not found');
+    }
     const callbackUrl = rows[0].callback_url;
     if (callbackUrl) {
       await notifyCallback(callbackUrl, { batchId, status: 'pending', submissionId });
@@ -69,13 +73,18 @@ export const batchStore = {
     const { rows } = await pool.query<any>(
       `UPDATE batches
        SET completed_count = completed_count + 1,
+           failed_count = GREATEST(0, failed_count - CASE WHEN submission_statuses #>> $2::text[] = 'failed' THEN 1 ELSE 0 END),
            submission_statuses = jsonb_set(submission_statuses, $2::text[], '"completed"'::jsonb, true),
            submission_results = jsonb_set(submission_results, $2::text[], $3::jsonb, true)
-       WHERE id = $1
+       WHERE id = $1 AND submission_statuses #>> $2::text[] IS DISTINCT FROM 'completed'
        RETURNING *`,
       [batchId, `{${submissionId}}`, JSON.stringify(result)],
     );
-    if (rows.length === 0) throw new Error('Batch not found');
+    if (rows.length === 0) {
+      const prior = await batchStore.get(batchId);
+      if (prior) return prior;
+      throw new Error('Batch not found');
+    }
     const entry = rowToBatch(rows[0]);
     if (entry.callbackUrl) {
       await notifyCallback(entry.callbackUrl, {
@@ -103,11 +112,15 @@ export const batchStore = {
        SET failed_count = failed_count + 1,
            submission_statuses = jsonb_set(submission_statuses, $2::text[], '"failed"'::jsonb, true),
            submission_results = jsonb_set(submission_results, $2::text[], $3::jsonb, true)
-       WHERE id = $1
+       WHERE id = $1 AND COALESCE(submission_statuses #>> $2::text[], '') NOT IN ('completed', 'failed')
        RETURNING *`,
       [batchId, `{${submissionId}}`, JSON.stringify({ error })],
     );
-    if (rows.length === 0) throw new Error('Batch not found');
+    if (rows.length === 0) {
+      const prior = await batchStore.get(batchId);
+      if (prior) return prior;
+      throw new Error('Batch not found');
+    }
     const entry = rowToBatch(rows[0]);
     if (entry.callbackUrl) {
       await notifyCallback(entry.callbackUrl, {
