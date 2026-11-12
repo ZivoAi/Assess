@@ -1,11 +1,12 @@
 import { Queue, Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
-import { runGradingPipeline } from '../grader/core.js';
+import { runGradingPipeline, canAutoPublish } from '../grader/core.js';
 import { getAssignment } from '../api/assignments.js';
 import { submissionsStore } from '../store/submissionsStore.js';
 import { batchStore } from '../store/batchStore.js';
 import { registry } from '../grader/registry.js';
-import { REDIS_URL, ZIVOPAL_CORE_URL, ZIVOPAL_SERVICE_KEY } from '../config.js';
+import { REDIS_URL } from '../config.js';
+import { coreGradeCallbackUrl, postGradeCallback } from '../integrations/gradeCallback.js';
 import type { GradeResult } from '../types.js';
 
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
@@ -17,30 +18,12 @@ export async function enqueueGradingJob(submission: any, opts?: { batchId?: stri
   return gradingQueue.add('grade-submission', payload, { removeOnComplete: true, removeOnFail: false });
 }
 
-async function postGradeCallback(url: string, body: object): Promise<void> {
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Service-Key': ZIVOPAL_SERVICE_KEY,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      console.warn(`Grade callback failed: ${res.status} ${text}`);
-    }
-  } catch (err: any) {
-    console.warn('Grade callback error:', err.message);
-  }
-}
-
 export function startWorker() {
   const worker = new Worker(
     'grading',
     async (job: Job) => {
       const payload = job.data;
+      coreGradeCallbackUrl(); // Fail configuration before any paid grading.
 
       const assignment = await getAssignment(payload.assignmentId);
       if (!assignment) {
@@ -64,11 +47,7 @@ export function startWorker() {
         }
       }
 
-      const callbackUrl =
-        payload.callbackUrl ||
-        (ZIVOPAL_CORE_URL ? `${ZIVOPAL_CORE_URL}/api/grades/callback` : null);
-
-      if (callbackUrl) {
+      {
         const feedback = result.details
           .map((d) => d.feedback)
           .filter(Boolean)
@@ -78,12 +57,13 @@ export function startWorker() {
         const maxScore = result.details.reduce((sum, d) => sum + d.maxScore, 0);
         const scorePercent = maxScore > 0 ? Math.round((result.totalScore / maxScore) * 100) : 0;
 
-        await postGradeCallback(callbackUrl, {
+        await postGradeCallback({
           submissionId: payload.id,
           score: scorePercent,
           maxScore,
           feedback: feedback || undefined,
-          published: true,
+          published: canAutoPublish(result),
+          requiresTeacherReview: !canAutoPublish(result),
         });
       }
 
