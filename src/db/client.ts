@@ -21,5 +21,5 @@ export const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle Postgres client', err.message);
+  console.error('Unexpected error on idle Assess database client');
 });
