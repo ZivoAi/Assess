@@ -1,4 +1,4 @@
-import request from 'supertest';
+import { coreRequest as request } from './helpers/coreRequest';
 import { createApp } from '../src/app';
 import * as queue from '../src/worker/queue';
 import { submissionsStore } from '../src/store/submissionsStore';
