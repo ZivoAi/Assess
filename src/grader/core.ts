@@ -13,6 +13,7 @@ export class GraderRegistry {
 }
 
 export async function runGradingPipeline(questions: Question[], answers: Record<string, any>, registry: GraderRegistry, submissionId: string) {
+  if (!questions.length) throw new Error('No assessment questions; no mark confirmed. Teacher review is required.');
   const details: GradeDetail[] = [];
   let total = 0;
   let max = 0;
@@ -20,9 +21,7 @@ export async function runGradingPipeline(questions: Question[], answers: Record<
   for (const q of questions) {
     const grader = registry.get(q.type) as Grader;
     if (!grader) {
-      details.push({ questionId: q.id, correct: false, score: 0, maxScore: 1, feedback: 'No grader for type' });
-      max += 1;
-      continue;
+      throw new Error('Unsupported question type; no mark confirmed. Teacher review is required.');
     }
     const answer = answers[q.id];
     const d = await grader.grade(q, answer);
@@ -35,5 +34,10 @@ export async function runGradingPipeline(questions: Question[], answers: Record<
     submissionId,
     totalScore: total,
     details,
+    requiresTeacherReview: details.some(detail => detail.requiresTeacherReview === true),
   };
+}
+
+export function canAutoPublish(result: { requiresTeacherReview?: boolean; details: GradeDetail[] }): boolean {
+  return result.requiresTeacherReview !== true && !result.details.some(detail => detail.requiresTeacherReview === true);
 }
