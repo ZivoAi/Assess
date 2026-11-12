@@ -50,9 +50,24 @@ export const pool = {
         _submissions.set(id, { id, status: 'failed', result: null, error: p[1] });
       } else {
         if (!_submissions.has(id)) {
-          _submissions.set(id, { id, status: 'pending', result: null, error: null });
+          _submissions.set(id, { id, status: 'pending', result: parseJson(p[1]) ?? null, error: null });
         }
       }
+      return { rows: [] };
+    }
+    if (/UPDATE submissions/i.test(s)) {
+      const row = _submissions.get(p[0]);
+      if (!row) return { rows: [] };
+      if (/SET status = 'grading'/i.test(s) && row.status === 'pending' && row.result?.requestHash === p[1]) {
+        row.status = 'grading'; return { rows: [{ id: row.id }] };
+      }
+      if (/SET status = 'completed'/i.test(s) && row.status === 'grading' && row.result?.requestHash === p[2]) {
+        row.status = 'completed'; row.result = parseJson(p[1]); row.error = null; return { rows: [{ id: row.id }] };
+      }
+      if (/SET status = 'failed'/i.test(s) && row.status === 'grading' && row.result?.requestHash === p[1]) {
+        row.status = 'failed'; row.error = 'Grading requires manual review';
+      }
+      if (/SET error =/i.test(s) && row.status === 'completed' && row.result?.requestHash === p[1]) row.error = p[2];
       return { rows: [] };
     }
     if (/SELECT .* FROM submissions WHERE id/i.test(s)) {
@@ -77,6 +92,7 @@ export const pool = {
       const key = p[1].replace(/[{}]/g, '').trim();
       const entry = _batches.get(id);
       if (!entry) return { rows: [] };
+      if (entry.submission_statuses[key]) return { rows: [] };
       entry.submission_statuses[key] = 'pending';
       if (!entry.submission_ids.includes(key)) entry.submission_ids.push(key);
       return { rows: [entry] };
@@ -86,6 +102,8 @@ export const pool = {
       const key = p[1].replace(/[{}]/g, '').trim();
       const entry = _batches.get(id);
       if (!entry) return { rows: [] };
+      if (entry.submission_statuses[key] === 'completed') return { rows: [] };
+      if (entry.submission_statuses[key] === 'failed') entry.failed_count = Math.max(0, entry.failed_count - 1);
       entry.completed_count += 1;
       entry.submission_statuses[key] = 'completed';
       entry.submission_results[key] = parseJson(p[2]);
@@ -96,6 +114,7 @@ export const pool = {
       const key = p[1].replace(/[{}]/g, '').trim();
       const entry = _batches.get(id);
       if (!entry) return { rows: [] };
+      if (['completed', 'failed'].includes(entry.submission_statuses[key])) return { rows: [] };
       entry.failed_count += 1;
       entry.submission_statuses[key] = 'failed';
       entry.submission_results[key] = parseJson(p[2]);
