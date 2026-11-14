@@ -1,35 +1,31 @@
-import axios from 'axios';
-import { OPENAI_API_KEY } from '../config.js';
+import { ZIVOPAL_CORE_URL, ZIVOPAL_SERVICE_KEY } from '../config.js';
 
-export async function scoreEssayWithOpenAI(prompt: string): Promise<number> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY not set');
+export async function gradeEssayWithCore(prompt: string): Promise<{ score: number; feedback: string }> {
+  if (!ZIVOPAL_CORE_URL || !ZIVOPAL_SERVICE_KEY) {
+    throw new Error('Core AI grading requires ZIVOPAL_CORE_URL and ZIVOPAL_SERVICE_KEY');
   }
-
-  // Minimal example using OpenAI responses - user must set env var OPENAI_API_KEY
-  const url = 'https://api.openai.com/v1/chat/completions';
-  const system = 'You are an expert grader. Given a model answer and a student answer, return a JSON object with a score between 0 and 1 under `score` and short feedback under `feedback`.';
-
-  const res = await axios.post(
-    url,
-    {
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 256
-    },
-    { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }
-  );
-
-  const txt = res.data?.choices?.[0]?.message?.content || '';
+  const base = new URL(ZIVOPAL_CORE_URL);
+  if (base.username || base.password || (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(base.hostname)))) {
+    throw new Error('Core AI grading requires a secure Core URL');
+  }
   try {
-    const json = JSON.parse(txt);
-    const score = Math.max(0, Math.min(1, Number(json.score) || 0));
-    return score;
-  } catch (e) {
-    // Fallback: 0
-    return 0;
+    const response = await fetch(new URL('/api/ai/internal/assess', base), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Service-Key': ZIVOPAL_SERVICE_KEY },
+      body: JSON.stringify({ prompt }), signal: AbortSignal.timeout(25_000), redirect: 'error',
+    });
+    if (!response.ok) throw new Error('Core AI grading failed');
+    const json = await response.json() as { score?: unknown; feedback?: unknown; requiresTeacherReview?: boolean };
+    if (typeof json.score !== 'number' || !Number.isFinite(json.score) || json.score < 0 || json.score > 1 ||
+        json.requiresTeacherReview !== true || typeof json.feedback !== 'string' || !json.feedback.trim()) throw new Error('Invalid Core grading response');
+    return { score: json.score, feedback: json.feedback };
+  } catch {
+    // Never turn a network, configuration or model failure into a student's zero.
+    // Do not throw transport objects containing credential-bearing request headers.
+    throw new Error('AI grading unavailable or invalid; no mark confirmed. Teacher review is required');
   }
+}
+/** Compatibility name; Core owns the provider call. */
+export async function scoreEssayWithOpenAI(prompt: string): Promise<number> {
+  return (await gradeEssayWithCore(prompt)).score;
 }

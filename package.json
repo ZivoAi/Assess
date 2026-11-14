@@ -25,7 +25,8 @@
         "start:worker": "ts-node-dev --respawn --transpile-only src/worker/start.ts",
         "start:worker:prod": "node dist/worker/start.js",
         "lint": "eslint . --ext .ts",
-        "test": "jest --runInBand --forceExit",
+        "test": "jest --runInBand --forceExit && node --test scripts/core-ai-contract.test.cjs",
+        "test:workflow": "npm run build && bash scripts/test-grading-workflow.sh",
         "format": "prettier --write ."
     },
     "devDependencies": {

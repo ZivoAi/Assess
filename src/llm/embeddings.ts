@@ -1,36 +1,35 @@
-import axios from 'axios';
-import { OPENAI_API_KEY } from '../config.js';
+import { ZIVOPAL_CORE_URL, ZIVOPAL_SERVICE_KEY } from '../config.js';
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY not set');
+  if (!ZIVOPAL_CORE_URL || !ZIVOPAL_SERVICE_KEY) throw new Error('Core assessment configuration is required');
+  try {
+    const url = new URL('/api/ai/internal/assess/embeddings', ZIVOPAL_CORE_URL);
+    if (url.username || url.password || (url.protocol !== 'https:' &&
+        !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))) throw new Error('Invalid Core URL');
+    const response = await fetch(url, {
+      redirect: 'error',
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Service-Key': ZIVOPAL_SERVICE_KEY },
+      body: JSON.stringify({ texts: [text] }), signal: AbortSignal.timeout(25_000),
+    });
+    if (!response.ok) throw new Error('Core embedding unavailable');
+    const data = await response.json() as { embeddings?: unknown; requiresTeacherReview?: unknown };
+    const value = Array.isArray(data.embeddings) ? data.embeddings[0] : undefined;
+    if (data.requiresTeacherReview !== true || !Array.isArray(value) || value.length !== 1536 ||
+        value.some(n => typeof n !== 'number' || !Number.isFinite(n))) throw new Error('Invalid embedding');
+    return value;
+  } catch {
+    throw new Error('Assessment embeddings unavailable; no semantic mark confirmed. Teacher review is required');
   }
-
-  const url = 'https://api.openai.com/v1/embeddings';
-  const res = await axios.post(
-    url,
-    {
-      model: 'text-embedding-3-small',
-      input: text,
-    },
-    { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }
-  );
-
-  const embedding = res.data?.data?.[0]?.embedding;
-  if (!embedding) throw new Error('No embedding returned');
-  return embedding;
 }
 
-export function cosineSimilarity(a: number[], b: number[]) {
-  const minLen = Math.min(a.length, b.length);
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-  for (let i = 0; i < minLen; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (!a.length || a.length !== b.length || [...a, ...b].some(n => !Number.isFinite(n))) {
+    throw new Error('Invalid embedding vectors; no similarity confirmed');
   }
-  if (na === 0 || nb === 0) return 0;
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2; }
+  if (!na || !nb) throw new Error('Empty embedding signal; no similarity confirmed');
+  const result = dot / Math.sqrt(na * nb);
+  if (!Number.isFinite(result)) throw new Error('Invalid similarity; no semantic mark confirmed');
+  return Math.max(-1, Math.min(1, result));
 }

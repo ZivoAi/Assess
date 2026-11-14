@@ -30,12 +30,16 @@ export interface GradeDetail {
   score: number;
   maxScore: number;
   feedback?: string;
+  requiresTeacherReview?: boolean;
 }
 
 export interface GradeResult {
+  /** Internal replay binding; never a learner identity or provider credential. */
+  requestHash?: string;
   submissionId: string;
   totalScore: number;
   details: GradeDetail[];
+  requiresTeacherReview?: boolean;
 }
 
 export interface Grader<TQuestion = any, TAnswer = any> {

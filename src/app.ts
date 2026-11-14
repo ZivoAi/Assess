@@ -1,6 +1,5 @@
 import express from 'express';
   import cors from 'cors';
-  import bodyParser from 'body-parser';
   import pinoHttp from 'pino-http';
   import rateLimit from 'express-rate-limit';
   import { assignmentsRouter } from './api/assignments.js';
@@ -9,6 +8,8 @@ import express from 'express';
   import { zivopalRouter } from './integrations/zivopal.js';
   import { ALLOWED_ORIGINS } from './config.js';
   import { requestLogRedaction } from './logging.js';
+  import { requireCoreServiceKey } from './middleware/coreServiceAuth.js';
+  import { GradingRequestError } from './grader/task.js';
 
   export function createApp() {
     const app = express();
@@ -31,14 +32,19 @@ import express from 'express';
       }),
     );
 
-    app.use(bodyParser.json());
+    app.use(express.json());
 
+    app.use('/api', requireCoreServiceKey);
     app.use('/api/assignments', assignmentsRouter);
     app.use('/api/submissions', submissionsRouter);
     app.use('/api/batches', batchesRouter);
     app.use('/api/integrations/zivopal', zivopalRouter);
 
     app.get('/health', (_req, res) => res.send('ok'));
+    app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      if (error instanceof GradingRequestError) return res.status(error.status).json({ error: error.message, code: error.code });
+      return res.status(502).json({ error: 'Assessment service could not complete this request' });
+    });
 
     return app;
   }

@@ -1,38 +1,33 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
+import { createHash } from 'node:crypto';
 import { enqueueGradingJob } from '../worker/queue.js';
 import { getAssignment, setAssignment } from '../api/assignments.js';
-import { ZIVOPAL_SERVICE_KEY } from '../config.js';
+import { requireCoreServiceKey } from '../middleware/coreServiceAuth.js';
+import { canonicalJson, GradingRequestError } from '../grader/task.js';
 
 export const zivopalRouter = express.Router();
 
-function validateServiceKey(req: Request, res: Response, next: NextFunction) {
-  const key = req.headers['x-service-key'];
-  if (!ZIVOPAL_SERVICE_KEY) {
-    return res.status(500).json({ error: 'Service key not configured on this server' });
-  }
-  if (!key || key !== ZIVOPAL_SERVICE_KEY) {
-    return res.status(401).json({ error: 'Invalid or missing X-Service-Key' });
-  }
-  next();
-}
-
-zivopalRouter.post('/webhook', validateServiceKey, async (req: Request, res: Response) => {
+zivopalRouter.post('/webhook', requireCoreServiceKey, async (req: Request, res: Response, next) => { try {
   const { submissionId, assignmentId, studentId, answers, callbackUrl, questions } = req.body;
 
   if (!submissionId || !assignmentId) {
     return res.status(400).json({ error: 'submissionId and assignmentId are required' });
   }
 
-  // If questions are provided inline, upsert the assignment into Postgres so the
-  // worker can always find it — even across restarts and redeployments.
+  // Core owns the assignment. Assess keeps immutable processing snapshots so
+  // later edits cannot change an already claimed grade or block new submissions.
+  let questionSourceId: string | undefined;
   if (questions && Array.isArray(questions)) {
-    const existing = await getAssignment(assignmentId);
+    questionSourceId = 'source_' + createHash('sha256').update(canonicalJson([assignmentId, questions])).digest('hex');
+    const existing = await getAssignment(questionSourceId);
+    if (existing && canonicalJson(existing.questions) !== canonicalJson(questions)) {
+      throw new GradingRequestError(409, 'ASSIGNMENT_CONFLICT', 'The stored assessment snapshot requires review');
+    }
     if (!existing) {
-      await setAssignment({ id: assignmentId, title: assignmentId, questions });
+      await setAssignment({ id: questionSourceId, title: assignmentId, questions });
     }
   }
 
-  try {
     await enqueueGradingJob(
       {
         id: submissionId,
@@ -41,9 +36,8 @@ zivopalRouter.post('/webhook', validateServiceKey, async (req: Request, res: Res
         answers: answers || {},
         callbackUrl,
       },
+      undefined,
+      questionSourceId,
     );
-    return res.status(202).json({ submissionId, status: 'queued' });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
+    return res.status(202).json({ submissionId, status: 'accepted' });
+} catch (error) { next(error); } });

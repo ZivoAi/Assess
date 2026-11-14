@@ -20,10 +20,11 @@ export class ShortAnswerGrader implements Grader {
 
   /**
    * @param threshold similarity threshold (0-1)
-   * @param useEmbeddings try embeddings first (falls back to token overlap)
+   * @param useEmbeddings request semantic scoring through Core; failures require review
    */
   constructor(threshold = 0.6, useEmbeddings = false) {
     this.threshold = threshold;
+    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error('Invalid grading threshold');
     this.useEmbeddings = useEmbeddings;
   }
 
@@ -31,7 +32,7 @@ export class ShortAnswerGrader implements Grader {
     const modelAnswer: string = question.rubric?.modelAnswer || '';
     const maxScore = 1;
 
-    // If embeddings are requested, try them and fall back gracefully
+    // An explicitly requested semantic method must never silently become lexical scoring.
     if (this.useEmbeddings || question.rubric?.useEmbeddings) {
       try {
         const [ea, eb] = await Promise.all([getEmbedding(modelAnswer), getEmbedding(String(answer || ''))]);
@@ -43,9 +44,10 @@ export class ShortAnswerGrader implements Grader {
           score: correct ? 1 : 0,
           maxScore,
           feedback: `Embedding similarity: ${sim.toFixed(3)} - ${correct ? 'Pass' : 'Fail'}`,
+          requiresTeacherReview: true,
         };
       } catch (e) {
-        // Fall through to token-based similarity
+        throw new Error('Semantic scoring unavailable; no mark confirmed. Teacher review is required.');
       }
     }
 
@@ -57,7 +59,8 @@ export class ShortAnswerGrader implements Grader {
       correct,
       score: correct ? 1 : 0,
       maxScore,
-      feedback: `Similarity: ${sim.toFixed(2)} - ${correct ? 'Pass' : 'Fail'}`,
+      feedback: `Lexical overlap estimate: ${sim.toFixed(2)}. Teacher review required.`,
+      requiresTeacherReview: true,
     };
   }
 }

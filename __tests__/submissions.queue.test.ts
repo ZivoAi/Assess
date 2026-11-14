@@ -1,7 +1,8 @@
-import request from 'supertest';
+import { coreRequest as request } from './helpers/coreRequest';
 import { createApp } from '../src/app';
 import * as queue from '../src/worker/queue';
 import { submissionsStore } from '../src/store/submissionsStore';
+import { prepareGradingTask } from '../src/grader/task';
 
 jest.mock('../src/worker/queue');
 jest.mock('../src/db/client');
@@ -26,7 +27,11 @@ describe('Submissions queueing', () => {
 
     await request(app).post('/api/assignments').send(assignment).expect(201);
 
-    const enqueueSpy = jest.spyOn(queue, 'enqueueGradingJob').mockResolvedValue({} as any);
+    const enqueueSpy = jest.spyOn(queue, 'enqueueGradingJob').mockImplementation(async (input) => {
+      const task = await prepareGradingTask(input);
+      await submissionsStore.createPending(input.id, task.requestHash);
+      return {} as any;
+    });
 
     const submission = { id: 's-e1', assignmentId: 'a-essay', studentId: 'stu1', answers: { q1: 'My essay' } };
     const res = await request(app).post('/api/submissions').send(submission).expect(202);

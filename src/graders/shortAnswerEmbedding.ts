@@ -1,14 +1,12 @@
 import { Grader, GradeDetail } from '../types.js';
 import { getEmbedding, cosineSimilarity } from '../embeddings/openai.js';
-import { ShortAnswerGrader } from './shortAnswer.js';
 
 export class ShortAnswerEmbeddingGrader implements Grader {
   threshold: number;
-  fallback: ShortAnswerGrader;
 
   constructor(threshold = 0.72) {
     this.threshold = Number(process.env.SHORT_EMBEDDING_THRESHOLD ?? threshold);
-    this.fallback = new ShortAnswerGrader(0.6);
+    if (!Number.isFinite(this.threshold) || this.threshold < 0 || this.threshold > 1) throw new Error('Invalid grading threshold');
   }
 
   async grade(question: any, answer: any): Promise<GradeDetail> {
@@ -25,10 +23,10 @@ export class ShortAnswerEmbeddingGrader implements Grader {
         score: correct ? 1 : 0,
         maxScore: 1,
         feedback: `Embedding similarity: ${sim.toFixed(3)} - ${correct ? 'Pass' : 'Fail'}`,
+        requiresTeacherReview: true,
       };
     } catch (e) {
-      // Fallback to simple token overlap
-      return this.fallback.grade(question, answer);
+      throw new Error('Semantic scoring unavailable; no mark confirmed. Teacher review is required.');
     }
   }
 }
